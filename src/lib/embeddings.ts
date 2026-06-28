@@ -1,22 +1,30 @@
-import { EmbeddingModel, FlagEmbedding } from 'fastembed';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-// Singleton — initialised once per process, model cached on disk after first download
-let embedder: FlagEmbedding | null = null;
+// Singleton client — reused across requests
+let client: BedrockRuntimeClient | null = null;
 
-async function getEmbedder(): Promise<FlagEmbedding> {
-  if (!embedder) {
-    embedder = await FlagEmbedding.init({
-      model: EmbeddingModel.BGESmallENV15, // 384-dim, ~25 MB, no API key required
+function getClient(): BedrockRuntimeClient {
+  if (!client) {
+    client = new BedrockRuntimeClient({
+      region: process.env.AWS_BEDROCK_REGION || 'eu-central-1',
     });
   }
-  return embedder;
+  return client;
 }
 
 /**
- * Generate a 384-dimension embedding for any text string.
- * Uses BAAI/bge-small-en-v1.5 via ONNX Runtime (local, no network call after first download).
+ * Generate a 1536-dimension embedding using Amazon Bedrock Titan Text Embeddings v1.
+ * Credentials are loaded automatically from AWS_PROFILE / environment variables.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const emb = await getEmbedder();
-  return emb.queryEmbed(text);
+  const command = new InvokeModelCommand({
+    modelId: 'amazon.titan-embed-text-v1',
+    contentType: 'application/json',
+    accept: 'application/json',
+    body: JSON.stringify({ inputText: text }),
+  });
+
+  const response = await getClient().send(command);
+  const result = JSON.parse(new TextDecoder().decode(response.body));
+  return result.embedding as number[];
 }

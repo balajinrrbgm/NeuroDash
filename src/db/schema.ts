@@ -2,7 +2,7 @@ import { pgTable, serial, text, timestamp, json, customType } from 'drizzle-orm/
 
 const vector = customType<{ data: number[]; driverData: string }>({
   dataType() {
-    return 'vector(384)';
+    return 'vector(1536)';
   },
   toDriver(value: number[]): string {
     return `[${value.join(',')}]`;
@@ -29,6 +29,6 @@ export const feedbackItems = pgTable('feedback_items', {
   content: text('content').notNull(),
   sentiment: text('sentiment'), // 'positive', 'neutral', 'negative'
   metadata: json('metadata'),
-  embedding: vector('embedding'), // BGE-small embeddings are 384 dimensions
+  embedding: vector('embedding'), // Amazon Titan Text Embeddings v1 — 1536 dimensions
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

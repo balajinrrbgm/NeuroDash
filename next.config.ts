@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['fastembed', '@anush008/tokenizers', 'onnxruntime-node'],
+  serverExternalPackages: ['@aws-sdk/client-bedrock-runtime'],
 };
 
 export default nextConfig;
