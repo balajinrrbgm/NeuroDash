@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'H0 Hackathon: NeuroDash - Amazon Aurora PostgreSQL Serverless v2 + pgvector setup.'
+
+Parameters:
+  DBName:
+    Type: String
+    Default: neurodash
+    Description: Name of the primary database to create
+  MasterUsername:
+    Type: String
+    Default: postgres
+    Description: Master username for the database
+  MasterUserPassword:
+    Type: String
+    NoEcho: true
+    Description: Password for the master database user (min 8 characters)
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: neurodash-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets for Aurora Serverless v2 cluster
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres traffic
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # NOTE: For hackathon testing, this allows public access to the DB.
+        # In production, restrict this to Vercel's IPs or use a VPC peering/NAT.
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: "15.17" # Requires >=15.2 for pgvector; 15.17 is latest available in eu-central-1
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterUserPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !GetAtt DBSecurityGroup.GroupId
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 16.0
+
+  AuroraDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      PubliclyAccessible: true
+
+Outputs:
+  ClusterEndpoint:
+    Description: "Connection endpoint for the Aurora cluster"
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+  ClusterPort:
+    Description: "Port for the Aurora cluster"
+    Value: !GetAtt AuroraCluster.Endpoint.Port
+  ConnectionString:
+    Description: "PostgreSQL connection string (URL) - Use this in Vercel"
+    Value: !Sub "postgres://${MasterUsername}:${MasterUserPassword}@${AuroraCluster.Endpoint.Address}:${AuroraCluster.Endpoint.Port}/${DBName}"

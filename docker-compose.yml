@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: neurodash_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: neurodash
+    ports:
+      - "5432:5432"
+    volumes:
+      - neurodash_pgdata:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  neurodash_pgdata:
