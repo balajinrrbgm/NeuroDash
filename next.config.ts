@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  serverExternalPackages: ['@aws-sdk/client-bedrock-runtime'],
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
