@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NeuroDash — H0 Hack the Zero Stack</title>
+<style>
+  :root {
+    --indigo: #6366f1; --purple: #a855f7; --emerald: #34d399;
+    --rose: #f43f5e; --neutral-950: #0a0a0a; --neutral-900: #171717;
+    --neutral-800: #262626; --neutral-700: #404040; --neutral-400: #a3a3a3;
+    --neutral-100: #f5f5f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: var(--neutral-950); font-family: 'Segoe UI', system-ui, sans-serif; color: var(--neutral-100); overflow: hidden; }
+
+  /* ── Slide container ── */
+  .deck { width: 100vw; height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    justify-content: center; align-items: center; padding: 48px 64px;
+    opacity: 0; transition: opacity .4s;
+  }
+  .slide.active { display: flex; opacity: 1; }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 16px; z-index: 100;
+    background: rgba(23,23,23,.85); border: 1px solid var(--neutral-700);
+    backdrop-filter: blur(12px); border-radius: 999px; padding: 10px 20px;
+  }
+  .nav button {
+    background: none; border: none; cursor: pointer; color: var(--neutral-100);
+    font-size: 18px; padding: 4px 8px; border-radius: 6px;
+    transition: background .2s;
+  }
+  .nav button:hover { background: var(--neutral-800); }
+  .nav .counter { font-size: 13px; color: var(--neutral-400); min-width: 52px; text-align: center; }
+  .dot-nav { display: flex; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--neutral-700); cursor: pointer; transition: background .2s; }
+  .dot.active { background: var(--indigo); }
+
+  /* ── Typography ── */
+  .label {
+    font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--indigo); margin-bottom: 12px;
+  }
+  h1 { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; line-height: 1.1; letter-spacing: -.03em; }
+  h2 { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 700; letter-spacing: -.02em; }
+  h3 { font-size: 1.1rem; font-weight: 600; }
+  p, li { font-size: clamp(.9rem, 1.4vw, 1.05rem); line-height: 1.7; color: var(--neutral-400); }
+  strong { color: var(--neutral-100); }
+  ul { list-style: none; padding: 0; }
+  ul li::before { content: "→ "; color: var(--indigo); font-weight: 700; }
+
+  /* ── Gradient text ── */
+  .grad { background: linear-gradient(135deg, #818cf8, #a855f7, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  /* ── Cards ── */
+  .card {
+    background: rgba(23,23,23,.7); border: 1px solid var(--neutral-800);
+    border-radius: 16px; padding: 24px 28px; backdrop-filter: blur(8px);
+  }
+  .card-grid { display: grid; gap: 16px; width: 100%; }
+  .card-grid.cols2 { grid-template-columns: 1fr 1fr; }
+  .card-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    font-weight: 600; padding: 4px 12px; border-radius: 999px;
+    border: 1px solid;
+  }
+  .badge.green  { color: var(--emerald); border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.08); }
+  .badge.indigo { color: #818cf8; border-color: rgba(129,140,248,.3); background: rgba(129,140,248,.08); }
+  .badge.purple { color: var(--purple); border-color: rgba(168,85,247,.3); background: rgba(168,85,247,.08); }
+  .badge.rose   { color: var(--rose); border-color: rgba(244,63,94,.3); background: rgba(244,63,94,.08); }
+
+  /* ── Stat ── */
+  .stat-num { font-size: 2.8rem; font-weight: 800; letter-spacing: -.04em; }
+  .stat-label { font-size: .8rem; color: var(--neutral-400); margin-top: 2px; text-transform: uppercase; letter-spacing: .08em; }
+
+  /* ── Architecture diagram ── */
+  .arch { width: 100%; max-width: 860px; }
+  .arch svg { width: 100%; height: auto; }
+
+  /* ── Flow step ── */
+  .flow { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; width: 100%; }
+  .flow-step {
+    flex: 1; text-align: center; padding: 14px 10px;
+    background: rgba(23,23,23,.7); border: 1px solid var(--neutral-800);
+    border-radius: 12px; font-size: .82rem; font-weight: 600;
+  }
+  .flow-arrow { color: var(--neutral-700); font-size: 1.4rem; flex-shrink: 0; padding: 0 8px; }
+
+  /* ── Code block ── */
+  .code {
+    background: var(--neutral-900); border: 1px solid var(--neutral-800);
+    border-radius: 10px; padding: 16px 20px; font-family: 'Consolas', monospace;
+    font-size: .82rem; color: #a5b4fc; line-height: 1.6; width: 100%;
+  }
+  .code .key { color: #f472b6; } .code .val { color: #34d399; } .code .cmt { color: var(--neutral-700); }
+
+  /* ── Background blobs ── */
+  .blob {
+    position: absolute; border-radius: 50%; filter: blur(80px); opacity: .12; pointer-events: none;
+  }
+  .blob1 { width: 500px; height: 500px; background: var(--indigo); top: -150px; right: -100px; }
+  .blob2 { width: 400px; height: 400px; background: var(--purple); bottom: -100px; left: -80px; }
+
+  /* ── Full-width slide ── */
+  .slide-inner { width: 100%; max-width: 1000px; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 1 — TITLE -->
+  <div class="slide active" id="s1">
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+    <div style="text-align:center;max-width:700px;position:relative;z-index:1">
+      <div class="label">H0: Hack the Zero Stack · AWS + Vercel · 2026</div>
+      <h1 class="grad" style="margin-bottom:16px">NeuroDash</h1>
+      <p style="font-size:1.3rem;color:var(--neutral-100);margin-bottom:8px">AI-Powered B2B Customer Intelligence Platform</p>
+      <p style="margin-bottom:32px">Turn millions of unstructured feedback items into instant, searchable insight — powered by <strong>AWS Bedrock</strong> + <strong>Amazon Aurora pgvector</strong>, deployed on <strong>Vercel</strong>.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <span class="badge green">🟢 Amazon Aurora PostgreSQL</span>
+        <span class="badge indigo">⚡ AWS Bedrock Titan</span>
+        <span class="badge purple">▲ Vercel / Next.js 16</span>
+        <span class="badge rose">🔍 pgvector Semantic Search</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 2 — PROBLEM -->
+  <div class="slide" id="s2">
+    <div class="blob blob1"></div>
+    <div class="slide-inner">
+      <div class="label">The Problem</div>
+      <h2 style="margin-bottom:8px">Businesses are <span class="grad">drowning</span> in unstructured data</h2>
+      <p style="margin-bottom:28px;max-width:600px">Every day, companies receive thousands of support tickets, reviews and survey responses — yet the meaningful "why" stays buried in plain text.</p>
+      <div class="card-grid cols3">
+        <div class="card">
+          <div style="font-size:2rem;margin-bottom:10px">🏷️</div>
+          <h3 style="margin-bottom:6px">Manual Tagging</h3>
+          <p>Support teams spend hours manually categorising tickets that could be handled in milliseconds.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:2rem;margin-bottom:10px">🐛</div>
+          <h3 style="margin-bottom:6px">Hidden Bugs</h3>
+          <p>Product teams miss emerging issues because they are scattered across thousands of free-text responses.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:2rem;margin-bottom:10px">📉</div>
+          <h3 style="margin-bottom:6px">Late Churn Signals</h3>
+          <p>Customer success teams only discover unhappy customers after they have already left.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;border-color:rgba(244,63,94,.3)">
+        <p>Traditional relational databases search by <strong>keyword</strong> — not by <strong>meaning</strong>. The result: actionable insight is invisible.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 3 — SOLUTION -->
+  <div class="slide" id="s3">
+    <div class="blob blob2"></div>
+    <div class="slide-inner">
+      <div class="label">The Solution</div>
+      <h2 style="margin-bottom:8px">Ask your data <span class="grad">anything</span>, in plain English</h2>
+      <p style="margin-bottom:28px">NeuroDash converts every feedback item into a semantic vector embedding and stores it in Aurora. Natural language queries find the most relevant results — even when no keyword matches exist.</p>
+      <div class="card-grid cols2">
+        <div class="card" style="border-color:rgba(99,102,241,.3)">
+          <span class="badge indigo" style="margin-bottom:12px">Semantic Search</span>
+          <div class="code">
+            <span class="cmt">// Query: "checkout confusion"</span><br>
+            <span class="key">SELECT</span> content, similarity<br>
+            <span class="key">FROM</span> feedback_items<br>
+            <span class="key">ORDER BY</span> embedding <span class="val">&lt;=&gt;</span> $query_vector<br>
+            <span class="key">LIMIT</span> <span class="val">10</span>;
+          </div>
+        </div>
+        <div class="card">
+          <span class="badge green" style="margin-bottom:12px">Capabilities</span>
+          <ul style="display:flex;flex-direction:column;gap:10px">
+            <li><strong>Natural Language Queries</strong> — "Are users complaining about the checkout flow?"</li>
+            <li><strong>Trend Detection</strong> — Surface emerging issues before they escalate</li>
+            <li><strong>Churn Prediction</strong> — Semantic similarity to past churned accounts</li>
+            <li><strong>Real-time Ingestion</strong> — Zendesk, Intercom, custom webhooks</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 4 — ARCHITECTURE -->
+  <div class="slide" id="s4">
+    <div class="slide-inner" style="max-width:920px">
+      <div class="label">Architecture — The Zero Stack</div>
+      <h2 style="margin-bottom:24px">How it all <span class="grad">connects</span></h2>
+
+      <!-- Diagram -->
+      <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:center;margin-bottom:20px">
+
+        <!-- Box 1: Client -->
+        <div class="card" style="text-align:center;border-color:rgba(168,85,247,.35)">
+          <div style="font-size:1.6rem;margin-bottom:6px">🌐</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--purple);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Frontend</div>
+          <strong style="font-size:.9rem">Next.js 16</strong><br>
+          <span style="font-size:.78rem;color:var(--neutral-400)">Vercel Edge Network</span>
+        </div>
+
+        <!-- Arrow -->
+        <div style="text-align:center;padding:0 12px">
+          <div style="color:var(--neutral-600);font-size:.7rem;text-align:center;margin-bottom:4px">API call</div>
+          <div style="color:var(--indigo);font-size:1.6rem">→</div>
+        </div>
+
+        <!-- Box 2: API Routes -->
+        <div class="card" style="text-align:center;border-color:rgba(99,102,241,.35)">
+          <div style="font-size:1.6rem;margin-bottom:6px">⚡</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--indigo);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Serverless API</div>
+          <strong style="font-size:.9rem">/api/ingest</strong><br>
+          <strong style="font-size:.9rem">/api/search</strong><br>
+          <span style="font-size:.78rem;color:var(--neutral-400)">Vercel Functions</span>
+        </div>
+
+        <!-- Arrow with two branches -->
+        <div style="text-align:center;padding:0 12px">
+          <div style="color:var(--neutral-600);font-size:.7rem;text-align:center;margin-bottom:4px">embed + store</div>
+          <div style="color:var(--indigo);font-size:1.6rem">→</div>
+        </div>
+
+        <!-- Box 3: AWS -->
+        <div class="card" style="text-align:center;border-color:rgba(52,211,153,.35)">
+          <div style="font-size:1.6rem;margin-bottom:6px">🗄️</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--emerald);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">AWS Zero Stack</div>
+          <strong style="font-size:.9rem">Aurora PostgreSQL</strong><br>
+          <span style="font-size:.78rem;color:var(--neutral-400)">Serverless v2 · pgvector</span><br>
+          <span style="font-size:.78rem;color:var(--neutral-400)">eu-central-1</span>
+        </div>
+      </div>
+
+      <!-- Bedrock row -->
+      <div style="display:flex;justify-content:center;margin-bottom:20px">
+        <div style="width:2px;height:24px;background:var(--neutral-700);margin:0 auto"></div>
+      </div>
+      <div style="display:flex;justify-content:center">
+        <div class="card" style="text-align:center;border-color:rgba(251,191,36,.35);max-width:280px">
+          <div style="font-size:1.4rem;margin-bottom:6px">🤖</div>
+          <div style="font-size:.75rem;font-weight:700;color:#fbbf24;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">AWS Bedrock</div>
+          <strong style="font-size:.9rem">Titan Text Embeddings v1</strong><br>
+          <span style="font-size:.78rem;color:var(--neutral-400)">1536-dim vectors · eu-central-1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 5 — TECH STACK -->
+  <div class="slide" id="s5">
+    <div class="blob blob1"></div>
+    <div class="slide-inner">
+      <div class="label">Tech Stack</div>
+      <h2 style="margin-bottom:24px">Built with the <span class="grad">Zero Stack</span></h2>
+      <div class="card-grid cols2">
+        <div class="card" style="border-color:rgba(168,85,247,.3)">
+          <span class="badge purple" style="margin-bottom:12px">▲ Vercel / Frontend</span>
+          <ul style="display:flex;flex-direction:column;gap:8px">
+            <li><strong>Next.js 16</strong> App Router + Turbopack</li>
+            <li><strong>Tailwind CSS v4</strong> dark glassmorphism UI</li>
+            <li><strong>Recharts</strong> real-time ingestion chart</li>
+            <li><strong>Vercel Edge Network</strong> global CDN</li>
+            <li><strong>Serverless Functions</strong> /api/ingest · /api/search</li>
+          </ul>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <span class="badge green" style="margin-bottom:12px">☁️ AWS / Backend</span>
+          <ul style="display:flex;flex-direction:column;gap:8px">
+            <li><strong>Amazon Aurora PostgreSQL 15.17</strong> Serverless v2 (0.5–16 ACU)</li>
+            <li><strong>pgvector</strong> 1536-dim cosine similarity search</li>
+            <li><strong>AWS Bedrock</strong> Titan Text Embeddings v1</li>
+            <li><strong>CloudFormation</strong> IaC one-click deployment</li>
+            <li><strong>Drizzle ORM</strong> type-safe schema management</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;text-align:center">
+        <p>One AWS region (<strong>eu-central-1</strong>) · One database · No separate vector store · <strong>True Zero Stack</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 6 — HOW WE BUILT IT -->
+  <div class="slide" id="s6">
+    <div class="blob blob2"></div>
+    <div class="slide-inner">
+      <div class="label">How We Built It</div>
+      <h2 style="margin-bottom:24px">From zero to <span class="grad">production</span></h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="flow">
+          <div class="flow-step" style="border-color:rgba(168,85,247,.4)">
+            <div style="font-size:1.2rem;margin-bottom:4px">🎨</div>
+            <div>UI scaffolded<br>with Vercel v0</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step" style="border-color:rgba(99,102,241,.4)">
+            <div style="font-size:1.2rem;margin-bottom:4px">🗃️</div>
+            <div>Aurora + pgvector<br>via CloudFormation</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step" style="border-color:rgba(251,191,36,.4)">
+            <div style="font-size:1.2rem;margin-bottom:4px">🤖</div>
+            <div>Bedrock Titan<br>embedding API</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step" style="border-color:rgba(52,211,153,.4)">
+            <div style="font-size:1.2rem;margin-bottom:4px">🔍</div>
+            <div>pgvector cosine<br>similarity search</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step" style="border-color:rgba(99,102,241,.4)">
+            <div style="font-size:1.2rem;margin-bottom:4px">▲</div>
+            <div>Deployed to<br>Vercel</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-grid cols3" style="margin-top:20px">
+        <div class="card">
+          <h3 style="margin-bottom:8px">Schema Design</h3>
+          <p>Drizzle ORM with custom <code style="color:#a5b4fc">vector(1536)</code> type mapping directly to pgvector. Type-safe queries pushed to Aurora.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px">Embedding Pipeline</h3>
+          <p>Each feedback item → Bedrock InvokeModel → 1536-dim float array → stored as pgvector column alongside the original text.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px">Semantic Query</h3>
+          <p>User query → same embedding pipeline → <code style="color:#a5b4fc">ORDER BY embedding &lt;=&gt; $vector</code> cosine distance — sub-second results.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 7 — CHALLENGES -->
+  <div class="slide" id="s7">
+    <div class="slide-inner">
+      <div class="label">Challenges We Ran Into</div>
+      <h2 style="margin-bottom:24px">Real problems, <span class="grad">real solutions</span></h2>
+      <div class="card-grid cols2">
+        <div class="card" style="border-color:rgba(244,63,94,.3)">
+          <span class="badge rose" style="margin-bottom:12px">Challenge</span>
+          <h3 style="margin-bottom:8px">CloudFormation Engine Version</h3>
+          <p>Aurora PostgreSQL <code style="color:#f87171">15.4</code> wasn't available in <code style="color:#f87171">eu-central-1</code> — deployment failed silently.</p>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <span class="badge green" style="margin-bottom:12px">Fix</span>
+          <h3 style="margin-bottom:8px">Dynamic Version Discovery</h3>
+          <p>Used <code style="color:#34d399">describe-db-engine-versions</code> to find the latest available version (<code>15.17</code>) and updated the IaC template.</p>
+        </div>
+        <div class="card" style="border-color:rgba(244,63,94,.3)">
+          <span class="badge rose" style="margin-bottom:12px">Challenge</span>
+          <h3 style="margin-bottom:8px">VPC Missing Public Routes</h3>
+          <p>New VPC had no route table connecting subnets to the internet gateway — Aurora was unreachable from Vercel.</p>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <span class="badge green" style="margin-bottom:12px">Fix</span>
+          <h3 style="margin-bottom:8px">IaC Route Table Resources</h3>
+          <p>Added <code style="color:#34d399">PublicRouteTable</code>, <code>PublicRoute</code>, and subnet associations to CloudFormation template — zero downtime stack update.</p>
+        </div>
+        <div class="card" style="border-color:rgba(244,63,94,.3)">
+          <span class="badge rose" style="margin-bottom:12px">Challenge</span>
+          <h3 style="margin-bottom:8px">Native Binaries on Vercel</h3>
+          <p><code>fastembed</code> + <code>onnxruntime-node</code> had native C++ binaries that silently crashed Vercel's build, returning edge-level 404.</p>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <span class="badge green" style="margin-bottom:12px">Fix</span>
+          <h3 style="margin-bottom:8px">Switched to Bedrock</h3>
+          <p>Replaced local ONNX model with AWS Bedrock Titan — pure JavaScript SDK, no native binaries, aligns perfectly with the AWS-first stack.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 8 — ACCOMPLISHMENTS -->
+  <div class="slide" id="s8">
+    <div class="blob blob1"></div>
+    <div class="slide-inner">
+      <div class="label">Accomplishments</div>
+      <h2 style="margin-bottom:28px">What we're <span class="grad">proud of</span></h2>
+      <div class="card-grid cols3" style="margin-bottom:20px">
+        <div class="card" style="text-align:center;border-color:rgba(99,102,241,.3)">
+          <div class="stat-num grad">1536</div>
+          <div class="stat-label">embedding dimensions<br>via Bedrock Titan v1</div>
+        </div>
+        <div class="card" style="text-align:center;border-color:rgba(52,211,153,.3)">
+          <div class="stat-num" style="color:var(--emerald)">0</div>
+          <div class="stat-label">separate vector databases<br>aurora does it all</div>
+        </div>
+        <div class="card" style="text-align:center;border-color:rgba(168,85,247,.3)">
+          <div class="stat-num" style="color:var(--purple)">&lt;1s</div>
+          <div class="stat-label">semantic search latency<br>across seeded feedback</div>
+        </div>
+      </div>
+      <div class="card-grid cols2">
+        <div class="card">
+          <h3 style="margin-bottom:8px">🏗️ Full IaC on AWS</h3>
+          <p>One CloudFormation template provisions the entire Aurora stack — VPC, subnets, routing, security groups, Serverless v2 cluster — reproducible in any AWS account.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px">🔐 Security-First IAM</h3>
+          <p>Dedicated IAM user <code style="color:#a5b4fc">neurodash-vercel</code> with least-privilege Bedrock invoke policy — no overprivileged credentials in production.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ SLIDE 9 — WHAT WE LEARNED -->
+  <div class="slide" id="s9">
+    <div class="blob blob2"></div>
+    <div class="slide-inner">
+      <div class="label">What We Learned</div>
+      <h2 style="margin-bottom:24px">Key <span class="grad">takeaways</span></h2>
+      <div class="card-grid cols2">
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:8px">🐘</div>
+          <h3 style="margin-bottom:8px">pgvector is production-ready</h3>
+          <p>Aurora + pgvector eliminates the need for a dedicated vector database (Pinecone, Weaviate, Qdrant). For most B2B workloads, it delivers equivalent semantic search performance at a fraction of the operational cost.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:8px">🤖</div>
+          <h3 style="margin-bottom:8px">Bedrock simplifies AI auth</h3>
+          <p>Using AWS Bedrock instead of OpenAI removes the per-token billing complexity and integrates natively with IAM — no separate API key management, everything stays inside the AWS trust boundary.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:8px">🏗️</div>
+          <h3 style="margin-bottom:8px">IaC catches hidden issues</h3>
+          <p>Writing CloudFormation from scratch exposed networking gaps (missing route tables, <code>PubliclyAccessible</code> on wrong resource) that would have been invisible with console-based deployments.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:8px">📦</div>
+          <h3 style="margin-bottom:8px">Dependency hygiene matters</h3>
+          <p>Native binary packages (<code>onnxruntime-node</code>) silently break Vercel deployments with a 404 — never leave unused packages in <code>package.json</code>, even after switching providers.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ SLIDE 10 — WHAT'S NEXT -->
+  <div class="slide" id="s10">
+    <div class="blob blob1"></div>
+    <div class="slide-inner">
+      <div class="label">What's Next for NeuroDash</div>
+      <h2 style="margin-bottom:24px">The <span class="grad">roadmap</span></h2>
+      <div class="card-grid cols3" style="margin-bottom:16px">
+        <div class="card" style="border-color:rgba(99,102,241,.3)">
+          <span class="badge indigo" style="margin-bottom:10px">v1.1</span>
+          <h3 style="margin-bottom:8px">Live Integrations</h3>
+          <p>Zendesk, Intercom, and Salesforce webhooks for real-time feedback ingestion into Aurora without manual uploads.</p>
+        </div>
+        <div class="card" style="border-color:rgba(168,85,247,.3)">
+          <span class="badge purple" style="margin-bottom:10px">v1.2</span>
+          <h3 style="margin-bottom:8px">AI Summarisation</h3>
+          <p>Use Bedrock Claude to generate weekly trend summaries and executive reports, directly from Aurora query results.</p>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <span class="badge green" style="margin-bottom:10px">v2.0</span>
+          <h3 style="margin-bottom:8px">Churn Prediction</h3>
+          <p>ML model trained on historical churned-account embeddings to proactively flag at-risk customers before they escalate.</p>
+        </div>
+      </div>
+      <div class="card-grid cols2">
+        <div class="card">
+          <h3 style="margin-bottom:8px">💰 Monetisation Model</h3>
+          <p><strong>$99/mo</strong> — up to 10k feedback items · <strong>$499/mo</strong> — up to 100k · <strong>Enterprise</strong> — custom Aurora ACU allocation + dedicated VPC peering</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px">🌍 Scale Target</h3>
+          <p>Aurora Serverless v2 scales to <strong>16 ACU</strong> automatically. Target: 10M+ feedback items per tenant, sub-second search, global multi-region read replicas.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ SLIDE 11 — SUBMISSION -->
+  <div class="slide" id="s11">
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+    <div class="slide-inner" style="max-width:700px;text-align:center">
+      <div class="label">Hackathon Submission</div>
+      <h2 class="grad" style="margin-bottom:28px">NeuroDash</h2>
+      <div class="card-grid" style="text-align:left;margin-bottom:20px">
+        <div class="card" style="border-color:rgba(99,102,241,.4)">
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:start;font-size:.9rem">
+            <strong style="color:var(--neutral-400)">Live App</strong>
+            <span><code style="color:#a5b4fc">https://neuro-dash.vercel.app</code></span>
+            <strong style="color:var(--neutral-400)">Database</strong>
+            <span>Amazon Aurora PostgreSQL 15.17 Serverless v2 + pgvector · <code style="color:#a5b4fc">eu-central-1</code></span>
+            <strong style="color:var(--neutral-400)">AI Model</strong>
+            <span>AWS Bedrock — <code style="color:#a5b4fc">amazon.titan-embed-text-v1</code> (1536 dims)</span>
+            <strong style="color:var(--neutral-400)">Track</strong>
+            <span>Monetizable B2B App · H0: Hack the Zero Stack</span>
+            <strong style="color:var(--neutral-400)">Built with</strong>
+            <span>Next.js, Vercel, Amazon Aurora, AWS Bedrock, pgvector, Drizzle ORM, Tailwind CSS, Recharts</span>
+          </div>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,.3)">
+          <h3 style="margin-bottom:10px">Testing Instructions</h3>
+          <ol style="list-style:decimal;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--neutral-400)">
+            <li>Visit the live app URL above</li>
+            <li>Type any customer feedback query in the search bar (e.g. <em>"checkout confusion"</em>, <em>"mobile battery drain"</em>, <em>"billing issues"</em>)</li>
+            <li>Click <strong>Analyze</strong> — results are ranked by semantic similarity via pgvector cosine search</li>
+            <li>The <strong>Search Results</strong> panel shows matching feedback with similarity scores</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- ── Navigation ── -->
+<div class="nav">
+  <button onclick="prev()" title="Previous">‹</button>
+  <div class="dot-nav" id="dots"></div>
+  <span class="counter" id="counter">1 / 11</span>
+  <button onclick="next()" title="Next">›</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => go(i);
+    dotsEl.appendChild(d);
+  });
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    document.querySelectorAll('.dot')[cur].classList.remove('active');
+    cur = (n + total) % total;
+    slides[cur].classList.add('active');
+    document.querySelectorAll('.dot')[cur].classList.add('active');
+    document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+  }
+
+  function next() { go(cur + 1); }
+  function prev() { go(cur - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  { e.preventDefault(); prev(); }
+  });
+</script>
+</body>
+</html>
